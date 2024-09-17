@@ -1,4 +1,7 @@
-import { BrowserRouter, Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Home from './Home';
+import Signin from './Signin';
+import Signup from './Signup';
 
 function App() {
   
@@ -7,12 +10,13 @@ function App() {
     <>
       <Router>
         <Routes>
-          <Route path='/' ></Route>
-          <Route path='/Signup' ></Route>
-          <Route path='/Home' ></Route>    
+          <Route path='/' element={<Signin />} ></Route>
+          <Route path='/Signup' element={<Signup />} ></Route>
+          <Route path='/Home' element={<Home />} ></Route>    
         </Routes>
       </Router>
-    </>
+
+      </>
   )
 }
 
