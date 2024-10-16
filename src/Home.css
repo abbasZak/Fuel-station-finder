@@ -1,0 +1,7 @@
+#logoutDiv{
+    display: none;
+}
+
+#box:hover #logoutDiv  {
+    display: block;
+}

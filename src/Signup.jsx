@@ -1,11 +1,12 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import GoogleImg from './img/google.png';
 import { auth, db } from './config/firebase';
 import { useState } from 'react';
-import { SnackbarProvider, useSnackbar } from 'notistack';
+import { useSnackbar } from 'notistack';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { collection, addDoc } from 'firebase/firestore';
+import {  setDoc, doc } from 'firebase/firestore';
 import './Register.css';
+import { RxColorWheel } from 'react-icons/rx';
 
 function Signup(){
     const [FirstName, setFirstName] = useState("");
@@ -13,25 +14,39 @@ function Signup(){
     const [Email, setEmail] = useState("");
     const [Password, setPassword] = useState("");
     const [ConfPassword, setConfirmPass] = useState("");
+    
 
     const { enqueueSnackbar } = useSnackbar();
-    
+    const navigate = useNavigate();
+
     const handleSignUp = async (e) => {
         e.preventDefault();
         try {
-            if(ConfPassword != Password){
+            if(ConfPassword !== Password){
                 enqueueSnackbar('Confitm Password does not match', { variant: 'error' });         
             }
 
             // Create user in Firebase Authentication
-            await createUserWithEmailAndPassword(auth, Email, Password);
-            
+            const usercredential =  await createUserWithEmailAndPassword(auth, Email, Password);
+            const user = usercredential.user;
             // Add user info to Firestore
-            const userRef = collection(db, 'users');
-            await addDoc(userRef, {
+            const userRef = doc(db, 'users', user.uid);
+            let role = 'User';
+
+            await setDoc(userRef, {
                 FirstName: FirstName,
                 LastName: LastName,
-            });
+                Email: user.email,
+                role: role
+            })
+
+            if(role === 'User'){
+              navigate('/Home');
+            }
+            if(role == 'Station'){
+                navigate('/StationPage');
+            }
+
             
             // Trigger success notification
             enqueueSnackbar('User signed up successfully!', { variant: 'success' });
@@ -79,6 +94,8 @@ function Signup(){
             </div>
           </div>
 
+            
+          
           <div class="relative z-0 w-full mb-5 group">
               <input 
               type="email" 

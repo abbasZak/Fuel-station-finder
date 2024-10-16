@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import GoogleImg from './img/google.png';
 import { useSnackbar } from 'notistack';
 import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
-import { auth } from './config/firebase';
+import { getDoc, doc } from 'firebase/firestore';
+import { auth, db } from './config/firebase';
 import { useEffect, useState } from 'react';
 
 function Signin() {
@@ -30,14 +31,48 @@ function Signin() {
 
   const handleSignin = async (e) => {
     e.preventDefault();
-    try{
-      await signInWithEmailAndPassword(auth, Email, Password);
-      enqueueSnackbar('Success Signing in', {variant: 'success'});
-      navigate('/Home');
-    }catch(err){
+  
+    try {
+      // Ensure Email and Password are correctly captured
+      if (!Email || !Password) {
+        enqueueSnackbar('Email and Password cannot be empty', {variant: 'error'});
+        return;
+      }
+  
+      // Sign in with email and password
+      const userCredentials = await signInWithEmailAndPassword(auth, Email, Password);
+      const user = userCredentials.user;
+      
+      // Fetch user document from Firestore based on the signed-in user's UID
+      const userRef = doc(db, "users", user.uid);
+      const docSnap = await getDoc(userRef);
+  
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        const role = userData.role;
+
+        
+  
+        // Check if the role is 'User'
+        if (role === 'User') {
+          enqueueSnackbar('Success Signing in', {variant: 'success'});
+          navigate('/Home'); // Redirect to the home page if role is correct
+        } else {
+          // Handle other roles or invalid roles
+          enqueueSnackbar('Unauthorized access for this role', {variant: 'error'});
+          // Optionally sign the user out or redirect
+          await auth.signOut();  // Sign out the user if their role is not 'User'
+        }
+      } else {
+        // If no user data found in Firestore
+        enqueueSnackbar('No user data found in the database', {variant: 'error'});
+      }
+    } catch (err) {
+      // Catch and display error messages
       enqueueSnackbar(`${err.message}`, {variant: 'error'});
     }
-  }
+  };
+  
 
   return (
     <div className="flex flex-col justify-center items-center h-screen">
