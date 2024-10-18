@@ -1,18 +1,25 @@
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, Popup, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSnackbar } from 'notistack';
 import { Icon } from 'leaflet';
-import GasPump from './img/gas-pump.png';
 import L from 'leaflet';
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import "leaflet-routing-machine";
 
-const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search?";
+// Make sure these image imports are correct
+import GasPump from './img/gas-pump.png';
+import Marker2 from './img/location-pin.png';
+
 const REVERSE_NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse?";
 
 const gasIcon = new Icon({
   iconUrl: GasPump,
+  iconSize: [38, 38]
+});
+
+const userIcon = new Icon({
+  iconUrl: Marker2,
   iconSize: [38, 38]
 });
 
@@ -27,10 +34,11 @@ function SetView({ center }) {
 }
 
 function Map() {
-  const [currentPosition, setCurrentPosition] = useState([51.505, -0.09]);
+  const [currentPosition, setCurrentPosition] = useState(null);
   const [fillingData, setFillingData] = useState([]);
   const [reverseData, setReverseData] = useState(null);
   const [routingControl, setRoutingControl] = useState(null);
+  const [stationLocations, setStationLocations] = useState({});
   const { enqueueSnackbar } = useSnackbar();
   const mapRef = useRef(null);
 
@@ -40,15 +48,21 @@ function Map() {
         (pos) => {
           const { latitude, longitude } = pos.coords;
           setCurrentPosition([latitude, longitude]);
+          console.log("Current position set:", latitude, longitude);
         },
         (err) => {
           console.error("Geolocation error:", err);
-          enqueueSnackbar(err.message, { variant: 'error' });
+          enqueueSnackbar("Error getting your location. Please ensure location services are enabled.", { variant: 'error' });
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
         }
       );
     } else {
       console.warn("Geolocation is not supported");
-      enqueueSnackbar("Geolocation is not supported", { variant: 'error' });
+      enqueueSnackbar("Geolocation is not supported by your browser", { variant: 'error' });
     }
   }, [enqueueSnackbar]);
 
@@ -64,55 +78,57 @@ function Map() {
     try {
       const response = await fetch(`${REVERSE_NOMINATIM_URL}${params}`);
       const data = await response.json();
-      setReverseData(data);
+      return data;
     } catch (err) {
       console.error("Reverse geocoding error:", err);
-      enqueueSnackbar(err.message, { variant: 'error' });
+      enqueueSnackbar("Error fetching location details", { variant: 'error' });
+      return null;
     }
   }, [enqueueSnackbar]);
 
-  const fetchFillingStations = useCallback(async (city) => {
-    const params = new URLSearchParams({
-      q: `filling station ${city}`,
-      format: "json",
-      addressdetails: 1,
-      polygon_geojson: 0,
-      limit: 10
-    });
-
+  const fetchFillingStations = useCallback(async (lat, lon) => {
+    const query = `
+      [out:json][timeout:25];
+      (
+        node["amenity"="fuel"](around:5000,${lat},${lon});
+        way["amenity"="fuel"](around:5000,${lat},${lon});
+        relation["amenity"="fuel"](around:5000,${lat},${lon});
+      );
+      out body;
+      >;
+      out skel qt;
+    `;
+    
     try {
-      const response = await fetch(`${NOMINATIM_URL}${params}`);
+      const response = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: query
+      });
       const data = await response.json();
-      setFillingData(data);
+      const fuelStations = data.elements.filter(element => element.type === 'node');
+      setFillingData(fuelStations);
+
+      // Fetch reverse geocoding data for each station
+      const locations = {};
+      for (const station of fuelStations) {
+        const locationData = await fetchReverseGeocode(station.lat, station.lon);
+        locations[station.id] = locationData;
+      }
+      setStationLocations(locations);
     } catch (err) {
       console.error("Filling station data fetch error:", err);
-      enqueueSnackbar(err.message, { variant: 'error' });
+      enqueueSnackbar("Error fetching nearby fuel stations", { variant: 'error' });
     }
-  }, [enqueueSnackbar]);
+  }, [enqueueSnackbar, fetchReverseGeocode]);
 
-  useEffect(() => {
-    fetchCurrentPosition();
-  }, [fetchCurrentPosition]);
-
-  useEffect(() => {
-    if (currentPosition[0] !== 51.505 || currentPosition[1] !== -0.09) {
-      fetchReverseGeocode(currentPosition[0], currentPosition[1]);
-    }
-  }, [currentPosition, fetchReverseGeocode]);
-
-  useEffect(() => {
-    if (reverseData?.address?.city) {
-      fetchFillingStations(reverseData.address.city);
-    }
-  }, [reverseData, fetchFillingStations]);
-
-  const checkRout = useCallback((id) => {
-    const filterData = fillingData.find(station => station?.osm_id === id);
+  const checkRout = useCallback(async (id) => {
+    const filterData = fillingData.find(station => station?.id === id);
+    
     if (filterData && mapRef.current) {
       if (routingControl) {
         mapRef.current.removeControl(routingControl);
       }
-      
+  
       const newRoutingControl = L.Routing.control({
         waypoints: [
           L.latLng(currentPosition[0], currentPosition[1]),
@@ -120,10 +136,25 @@ function Map() {
         ],
         routeWhileDragging: true
       }).addTo(mapRef.current);
-      
+  
       setRoutingControl(newRoutingControl);
     }
   }, [fillingData, currentPosition, routingControl]);
+
+  useEffect(() => {
+    fetchCurrentPosition();
+  }, [fetchCurrentPosition]);
+
+  useEffect(() => {
+    if (currentPosition) {
+      fetchReverseGeocode(currentPosition[0], currentPosition[1]).then(data => setReverseData(data));
+      fetchFillingStations(currentPosition[0], currentPosition[1]);
+    }
+  }, [currentPosition, fetchReverseGeocode, fetchFillingStations]);
+
+  if (!currentPosition) {
+    return <div>Loading your location...</div>;
+  }
 
   return (
     <div className="w-full h-full">
@@ -140,31 +171,35 @@ function Map() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
 
-        <ZoomControl position="bottomright" /> {/* You can change the position here */}
-
+        <ZoomControl position="bottomright" />
 
         <SetView center={currentPosition} />
 
-        <Marker position={currentPosition}>
+        <Marker 
+          position={currentPosition}
+          icon={userIcon}
+        >
           <Popup>
-            {reverseData?.display_name}
+            Your Location: {reverseData?.display_name}
           </Popup>
         </Marker>
         {fillingData.map((station) => (
-          station.lat && station.lon ? (
-            <Marker 
-              key={station.osm_id} 
-              position={[parseFloat(station.lat), parseFloat(station.lon)]} 
-              icon={gasIcon}
-              eventHandlers={{
-                click: () => checkRout(station.osm_id),
-              }}
-            >
-              <Popup>
-                {station?.display_name}
-              </Popup>
-            </Marker>
-          ) : null
+          <Marker 
+            key={station.id} 
+            position={[station.lat, station.lon]} 
+            icon={gasIcon}
+            eventHandlers={{
+              click: () => checkRout(station.id),
+            }}
+          >
+            <Popup>
+              {stationLocations[station.id]?.display_name || 'Loading location name...'}
+              <br />
+              Latitude: {station.lat}
+              <br />
+              Longitude: {station.lon}
+            </Popup>
+          </Marker>
         ))}
       </MapContainer>
     </div>

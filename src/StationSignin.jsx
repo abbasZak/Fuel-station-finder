@@ -57,7 +57,7 @@ function StationSignin() {
                         <input 
                             type="email" 
                             id="email" 
-                            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" 
+                            className="block py-2.5 px-0 w-full text-sm text-gray-900 bg-transparent border-0 border-b-2 border-gray-300 appearance-none focus:outline-none focus:ring-0 focus:border-blue-600 focus:text-gray-900 peer placeholder-gray-500" 
                             placeholder="name@flowbite.com" 
                             required 
                             onChange={(e) => setEmail(e.target.value)}
@@ -70,7 +70,7 @@ function StationSignin() {
                             type="password" 
                             id="password" 
                             onChange={(e) => setPassword(e.target.value)}
-                            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" 
+                            className="block py-2.5 px-0 w-full text-sm text-gray-900 bg-transparent border-0 border-b-2 border-gray-300 appearance-none focus:outline-none focus:ring-0 focus:border-blue-600 focus:text-gray-900 peer placeholder-gray-500" 
                             required 
                         />
                     </div>
@@ -83,7 +83,7 @@ function StationSignin() {
                     </div>
                     <button 
                         type="submit" 
-                        className="text-white bg-mygreen hover:bg-hovermygreen focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm w-full px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                        className="text-white bg-mygreen hover:bg-hovermygreen  focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-mygreen   font-medium rounded-lg text-sm w-full px-5 py-2.5 text-center"
                     >
                         Sign In
                     </button>
